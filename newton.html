@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prediksi Populasi (Interpolasi Newton)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f7f9fc;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      color: #2c3e50;
+      animation: fadeInDown 1s ease-out;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+      max-width: 850px;
+      width: 100%;
+      animation: fadeInUp 1s ease-out;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    /* Tombol hijau (default) */
+    .btn-green {
+      background-color: #27ae60;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .btn-green:hover {
+      background-color: #1e8449;
+    }
+
+    /* Tombol biru khusus untuk redirect */
+    .btn-blue {
+      background-color: #2980b9;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .btn-blue:hover {
+      background-color: #1f6390;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+    }
+    canvas {
+      margin-top: 25px;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Prediksi Populasi dengan Interpolasi Newton Maju</h1>
+  <div class="container">
+    <p>Masukkan data tahun dan populasi (4 titik):</p>
+    <input type="number" id="x0" placeholder="Tahun 1"> <input type="number" id="y0" placeholder="Populasi 1"><br>
+    <input type="number" id="x1" placeholder="Tahun 2"> <input type="number" id="y1" placeholder="Populasi 2"><br>
+    <input type="number" id="x2" placeholder="Tahun 3"> <input type="number" id="y2" placeholder="Populasi 3"><br>
+    <input type="number" id="x3" placeholder="Tahun 4"> <input type="number" id="y3" placeholder="Populasi 4"><br><br>
+
+    <input type="number" id="target" placeholder="Tahun yang ingin diprediksi">
+    <br>
+    <button class="btn-green" onclick="predict()">Prediksi</button>
+    <button class="btn-green" onclick="downloadPDF()">Export ke PDF</button>
+    <button class="btn-green" onclick="downloadExcel()">Export ke Excel</button>
+    <button class="btn-blue" onclick="redirectPage()">Metode Interpolasi Lagrange</button>
+
+    <table id="resultTable" style="display: none;">
+      <thead>
+        <tr><th>Tahun</th><th>Populasi</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <canvas id="chart" height="100"></canvas>
+  </div>
+
+  <script>
+    let chartInstance = null;
+
+    function factorial(n) {
+      return n <= 1 ? 1 : n * factorial(n - 1);
+    }
+
+    function newtonForward(x, y, value, n) {
+      let h = x[1] - x[0];
+      let u = (value - x[0]) / h;
+      let result = y[0];
+      let diff = [...y];
+
+      for (let i = 1; i < n; i++) {
+        for (let j = 0; j < n - i; j++) {
+          diff[j] = diff[j + 1] - diff[j];
+        }
+        let term = diff[0];
+        for (let k = 0; k < i; k++) {
+          term *= (u - k);
+        }
+        term /= factorial(i);
+        result += term;
+      }
+      return result;
+    }
+
+    function predict() {
+      const x = [0, 1, 2, 3].map(i => parseInt(document.getElementById('x'+i).value));
+      const y = [0, 1, 2, 3].map(i => parseFloat(document.getElementById('y'+i).value));
+      const value = parseInt(document.getElementById('target').value);
+
+      const result = newtonForward(x, y, value, 4);
+
+      const table = document.getElementById('resultTable');
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = '';
+      x.forEach((xi, i) => {
+        tbody.innerHTML += `<tr><td>${xi}</td><td>${y[i]}</td></tr>`;
+      });
+      tbody.innerHTML += `<tr><td><b>${value}</b></td><td><b>${result.toFixed(2)}</b></td></tr>`;
+      table.style.display = 'table';
+
+      const ctx = document.getElementById('chart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [...x, value],
+          datasets: [{
+            label: 'Populasi',
+            data: [...y, result],
+            borderColor: 'blue',
+            fill: false,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: true } }
+        }
+      });
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Hasil Prediksi Populasi", 14, 16);
+
+      const table = document.getElementById("resultTable");
+      const data = [];
+      for (let row of table.rows) {
+        const rowData = [];
+        for (let cell of row.cells) {
+          rowData.push(cell.innerText);
+        }
+        data.push(rowData);
+      }
+      doc.autoTable({ head: [data[0]], body: data.slice(1), startY: 20 });
+      doc.save("hasil-prediksi.pdf");
+    }
+
+    function downloadExcel() {
+      const table = document.getElementById("resultTable");
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.table_to_sheet(table);
+      XLSX.utils.book_append_sheet(wb, ws, "Hasil");
+      XLSX.writeFile(wb, "hasil-prediksi.xlsx");
+    }
+
+    function redirectPage() {
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
